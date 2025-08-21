@@ -4,7 +4,7 @@ import re
 import time
 from datetime import date
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
@@ -156,9 +156,8 @@ def iterate_and_download(driver, directory: Path):
             time.sleep(NAV_DELAY)
 
 
-def run_download(directory: Path):
-    today = date.today()
-    url = build_daily_url(today)
+def run_download(directory: Path, d: date):
+    url = build_daily_url(d)
     driver = make_driver(directory)
     try:
         driver.get(url)
@@ -232,23 +231,25 @@ def save_metadata(matches: List[Dict[str, str]], date_str: str, path: Path):
             )
 
 
-def send_email(matches: List[Dict[str, str]], date_str: str):
-    if not matches:
-        return
+def send_email(matches: List[Dict[str, str]], date_str: str, recipients: Optional[str] = None):
     import smtplib
     from email.message import EmailMessage
 
     smtp_user = os.environ.get("SMTP_USER")
     smtp_pass = os.environ.get("SMTP_PASS")
-    recipients = os.environ.get("RECIPIENTS")
+    if recipients is None:
+        recipients = os.environ.get("RECIPIENTS", "william.manning@federalgroup.com.au")
     if not smtp_user or not smtp_pass or not recipients:
         print("[warn] Email credentials not provided; skipping email")
         return
-    body_lines = []
-    for m in matches:
-        body_lines.append(
-            f"Keyword: {m['keyword']}\nSpeaker: {m['speaker']}\nQuote: {m['quote']}\nFile: {m['file']}\n"
-        )
+    body_lines: List[str] = []
+    if matches:
+        for m in matches:
+            body_lines.append(
+                f"Keyword: {m['keyword']}\nSpeaker: {m['speaker']}\nQuote: {m['quote']}\nFile: {m['file']}\n"
+            )
+    else:
+        body_lines.append(f"No keyword matches found in transcripts for {date_str}.")
     msg = EmailMessage()
     msg["Subject"] = f"Tasmania Hansard matches for {date_str}"
     msg["From"] = smtp_user
@@ -262,19 +263,32 @@ def send_email(matches: List[Dict[str, str]], date_str: str):
         s.send_message(msg)
 
 
-def main():
-    date_str = date.today().isoformat()
+def run_monitor(target_date: date, keywords: List[str], recipients: Optional[str] = None) -> bool:
+    """Run download, scan for keywords and send email.
+
+    Returns True if transcripts were downloaded, False otherwise.
+    """
+    date_str = target_date.isoformat()
     download_dir = Path("transcripts") / date_str
     download_dir.mkdir(parents=True, exist_ok=True)
-    run_download(download_dir)
+    run_download(download_dir, target_date)
+    transcripts = list(download_dir.glob("*.txt"))
+    if not transcripts:
+        print("[info] No new documents for this date; skipping email.")
+        return False
 
-    keywords = load_keywords(Path("keywords.txt"))
     all_matches: List[Dict[str, str]] = []
-    for txt in download_dir.glob("*.txt"):
+    for txt in transcripts:
         all_matches.extend(extract_mentions(txt, keywords))
 
     save_metadata(all_matches, date_str, Path("metadata.csv"))
-    send_email(all_matches, date_str)
+    send_email(all_matches, date_str, recipients)
+    return True
+
+
+def main():
+    keywords = load_keywords(Path("keywords.txt"))
+    run_monitor(date.today(), keywords)
 
 
 if __name__ == "__main__":
