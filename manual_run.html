@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Run Tasmania Hansard Monitor</title>
+</head>
+<body>
+  <h1>Manual Hansard Monitor Run</h1>
+  <p>Select a date and trigger the GitHub Actions workflow.</p>
+  <label for="date">Date:</label>
+  <input type="date" id="date" />
+  <br/>
+  <label for="token">GitHub token:</label>
+  <input type="password" id="token" placeholder="personal access token" />
+  <br/>
+  <button id="run">Run</button>
+  <pre id="output"></pre>
+<script>
+const owner = "YOUR_GITHUB_USERNAME"; // change to your GitHub username
+const repo = "Mon-Hans";
+const workflow = "daily.yml";
+
+async function trigger(){
+  const date = document.getElementById('date').value;
+  const token = document.getElementById('token').value;
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ref: 'main', inputs: {date}})
+  });
+  document.getElementById('output').textContent = res.ok ? 'Workflow dispatched' : `Error ${res.status}: ${await res.text()}`;
+}
+
+document.getElementById('run').onclick = trigger;
+</script>
+</body>
+</html>

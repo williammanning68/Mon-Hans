@@ -1,0 +1,36 @@
+name: Daily transcript monitor
+
+on:
+  schedule:
+    - cron: '30 21 * 1-3 *'
+    - cron: '30 21 * 10-12 *'
+    - cron: '30 22 * 4-9 *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Override date (YYYY-MM-DD)'
+        required: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install -r requirements.txt
+      - name: Run monitor
+        run: python scripts/tas_parl_monitor.py
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          RECIPIENTS: william.manning@federalgroup.com.au
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          TARGET_DATE: ${{ github.event.inputs.date }}
+      - name: Commit transcripts
+        run: |
+          git config user.name 'github-actions'
+          git config user.email 'github-actions@github.com'
+          git add transcripts metadata.csv
+          git commit -m "Daily transcripts $(date -u +%Y-%m-%d)" && git push || echo "No changes to commit"
