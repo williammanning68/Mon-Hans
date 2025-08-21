@@ -1,0 +1,55 @@
+name: Daily Parliament Transcript Monitor
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run daily at 2 AM UTC (12 PM AEST)
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install selenium==4.15.2
+
+    - name: Install Microsoft Edge
+      run: |
+        curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg
+        sudo install -o root -g root -m 644 microsoft.gpg /etc/apt/trusted.gpg.d/
+        sudo sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/microsoft.gpg] https://packages.microsoft.com/repos/edge stable main" > /etc/apt/sources.list.d/microsoft-edge.list'
+        sudo rm microsoft.gpg
+        sudo apt update
+        sudo apt install microsoft-edge-stable
+
+    - name: Download Microsoft Edge WebDriver
+      run: |
+        EDGE_VERSION=$(microsoft-edge --version | awk '{print $3}')
+        DRIVER_VERSION_URL="https://msedgedriver.azureedge.net/LATEST_STABLE_$EDGE_VERSION"
+        DRIVER_VERSION=$(curl -s "$DRIVER_VERSION_URL")
+        wget "https://msedgedriver.azureedge.net/$DRIVER_VERSION/edgedriver_linux64.zip"
+        unzip edgedriver_linux64.zip
+        sudo mv msedgedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/msedgedriver
+
+    - name: Run monitoring script
+      run: |
+        python tas_parl_daily_monitor.py
+
+    - name: Commit and push if changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add Transcripts/
+        git commit -m "Add transcripts for $(date +'%Y-%m-%d')" || echo "No changes to commit"
+        git push
