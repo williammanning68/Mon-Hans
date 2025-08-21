@@ -6,7 +6,7 @@ The scheduled GitHub Action runs every day at **8:30am Hobart time** and sends r
 
 ## Configuration
 - Add keywords to `keywords.txt`.
-- Set SMTP credentials as environment variables or GitHub Secrets.
+- Set SMTP credentials and recipient list as environment variables or GitHub Secrets.
 
 ## Running locally
 ```
