@@ -8,9 +8,11 @@ from typing import List, Dict, Optional
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 import nltk
 
@@ -39,7 +41,8 @@ def make_driver(download_dir: Path):
         "profile.default_content_setting_values.automatic_downloads": 1,
     }
     opts.add_experimental_option("prefs", prefs)
-    return webdriver.Chrome(options=opts)
+    service = Service(ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=opts)
 
 
 def wait_downloads_clear(directory: Path):
