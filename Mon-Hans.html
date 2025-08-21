@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tas Hansard Watch — Tasmania parliamentary transcripts monitor</title>
+  <style>
+    :root {
+      --bg: #0b1020;  --panel:#121933;  --muted:#93a1bd;  --text:#e9eeff;  --accent:#6ea8ff;  --accent-2:#9effc3;  --warn:#ffd166;
+      --border: rgba(255,255,255,0.08);
+    }
+    html,body{height:100%;}
+    body{margin:0;background:radial-gradient(1200px 600px at 70% -10%, #18234c 0%, #0b1020 55%), var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";}
+    .wrap{max-width:1100px;margin:32px auto;padding:0 16px 64px;}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+    h1{font-size: clamp(22px, 3.5vw, 32px);margin:0;letter-spacing:0.2px}
+    .badge{font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;color:var(--muted);}
+    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.025), transparent), var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px;}
+    .grid{display:grid;gap:16px; grid-template-columns: 1.2fr 1fr;}
+    .controls{display:grid;grid-template-columns:1fr;gap:12px}
+    label{font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted)}
+    textarea,input,select,button{width:100%; background:#0e1630; color:var(--text); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:14px;}
+    textarea{min-height:100px;resize:vertical}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    button{cursor:pointer; font-weight:600}
+    .btn-primary{background: linear-gradient(180deg, #1a4eff, #0f38c9); border-color: rgba(110,168,255,0.35)}
+    .btn-ghost{background:transparent}
+    .k{display:inline-block;padding:2px 8px;border-radius:999px;background:#0a1433;border:1px solid var(--border);margin:2px 6px 2px 0;color:#b7c6ff;font-size:12px}
+    .small{font-size:12px;color:var(--muted)}
+    .results{margin-top:18px;}
+    .card{background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:16px; padding:14px; display:grid; gap:8px}
+    .title{font-weight:700;}
+    .meta{font-size:12px;color:var(--muted)}
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px;margin-right:6px}
+    mark{background:transparent; color:var(--accent-2); font-weight:700}
+    a{color:var(--accent)}
+    .footer{margin-top:16px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}
+    .warn{color:var(--warn)}
+    .hidden{display:none}
+    .table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    .table tr{background:rgba(255,255,255,0.02)}
+    .table td{padding:10px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+    .table td:first-child{border-left:1px solid var(--border);border-top-left-radius:12px;border-bottom-left-radius:12px}
+    .table td:last-child{border-right:1px solid var(--border);border-top-right-radius:12px;border-bottom-right-radius:12px}
+    details{border:1px dashed var(--border);border-radius:12px;padding:10px 12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🔎 Tas Hansard Watch <span class="badge">Tasmania Parliament transcripts monitor</span></h1>
+      <div class="badge" id="status">Idle</div>
+    </header>
+
+    <div class="grid">
+      <section class="panel controls">
+        <div>
+          <label for="keywords">Keywords or phrases (one per line)</label>
+          <textarea id="keywords" placeholder="Example:\n"cost of living"\nenergy prices\nhousing OR rental\nbudget AND schools\n"></textarea>
+          <div class="small">Supports simple Boolean (AND/OR) and phrases in quotes. Each line becomes a separate watch query.</div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="house">House</label>
+            <select id="house">
+              <option value="both">Both Houses</option>
+              <option value="ha">House of Assembly</option>
+              <option value="lc">Legislative Council</option>
+            </select>
+          </div>
+          <div>
+            <label for="years">Years to search</label>
+            <input id="years" type="text" placeholder="e.g. 2025,2024" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="interval">Polling interval (minutes)</label>
+            <input id="interval" type="number" min="1" step="1" value="15" />
+          </div>
+          <div>
+            <label for="proxy">Optional proxy (to bypass CORS)</label>
+            <input id="proxy" type="url" placeholder="http://localhost:8787/fetch?url=" />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="run">Run now</button>
+          <button class="btn-ghost" id="toggle">Start auto-watch</button>
+          <button class="btn-ghost" id="clearSeen">Clear seen</button>
+          <button class="btn-ghost" id="save">Save settings</button>
+        </div>
+        <details>
+          <summary>“Why the proxy?”</summary>
+          Some government sites don’t allow cross‑origin requests from a local file. If results don’t load, run a tiny local proxy and put its URL above. Example (copy into a terminal as <code>proxy.mjs</code>):
+          <pre><code>import http from 'node:http';
+import https from 'node:https';
+import { URL } from 'node:url';
+http.createServer((req, res) => {
+  const u = new URL(req.url, 'http://localhost');
+  const target = u.searchParams.get('url');
+  if (!target) { res.writeHead(400); return res.end('Missing url'); }
+  const lib = target.startsWith('https') ? https : http;
+  lib.get(target, (r) => {res.writeHead(200, {'content-type': r.headers['content-type']||'text/html'}); r.pipe(res);}).on('error', e => {res.writeHead(500);res.end(String(e));});
+}).listen(8787);
+console.log('Proxy on http://localhost:8787/fetch?url=');</code></pre>
+        </details>
+      </section>
+
+      <section class="panel">
+        <div>
+          <label>Live matches</label>
+          <div id="live" class="small">No checks run yet.</div>
+        </div>
+        <div class="results">
+          <table class="table" id="table">
+            <thead><tr><td>Date</td><td>House</td><td>Title</td><td>Matched</td><td></td></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">
+      <div>Data source: Parliament of Tasmania Hansard search</div>
+      <div id="lastRun">—</div>
+    </div>
+  </div>
+
+<script>
+// ========================
+// Tas Hansard Watch (client-only)
+// ========================
+// This single-file page polls the Tasmanian Parliament Hansard search for your queries and flags new/updated matches.
+// It uses the public search pages like:
+//   https://search.parliament.tas.gov.au/adv/hahansard (House of Assembly)
+//   https://search.parliament.tas.gov.au/adv/lchansard (Legislative Council)
+// and result pages such as:
+//   https://search.parliament.tas.gov.au/search/search/search?IW_DATABASE=Hansard&IW_FIELD_ADVANCE_PHRASE=...&IW_SORT=-9
+// If your browser blocks cross-origin fetches, set an HTTP proxy above and the app will prepend it to requests.
+
+const $ = (sel)=>document.querySelector(sel);
+const $$ = (sel)=>Array.from(document.querySelectorAll(sel));
+const state = {
+  timer:null,
+  running:false,
+  lastHash:null,
+  seen: new Set(JSON.parse(localStorage.getItem('tashansard.seen')||'[]')),
+};
+
+const DEFAULTS = {
+  years: new Date().getFullYear().toString(),
+  interval: 15,
+  house: 'both',
+  keywords: ['"cost of living"','housing','energy','budget'].join('\n'),
+  proxy: ''
+};
+
+function saveSettings(){
+  localStorage.setItem('tashansard.keywords',$('#keywords').value.trim());
+  localStorage.setItem('tashansard.years',$('#years').value.trim());
+  localStorage.setItem('tashansard.interval',$('#interval').value.trim());
+  localStorage.setItem('tashansard.house',$('#house').value);
+  localStorage.setItem('tashansard.proxy',$('#proxy').value.trim());
+}
+function loadSettings(){
+  $('#keywords').value = localStorage.getItem('tashansard.keywords') || DEFAULTS.keywords;
+  $('#years').value    = localStorage.getItem('tashansard.years')    || DEFAULTS.years;
+  $('#interval').value = localStorage.getItem('tashansard.interval') || DEFAULTS.interval;
+  $('#house').value    = localStorage.getItem('tashansard.house')    || DEFAULTS.house;
+  $('#proxy').value    = localStorage.getItem('tashansard.proxy')    || DEFAULTS.proxy;
+}
+
+function nowStr(){
+  return new Date().toLocaleString();
+}
+
+function sha1(s){ // tiny hash for dedupe
+  const str = new TextEncoder().encode(s);
+  return crypto.subtle.digest('SHA-1', str).then(b=>Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join(''));
+}
+
+function notify(title, body){
+  if (Notification && Notification.permission === 'granted') {
+    const n = new Notification(title, { body });
+    setTimeout(()=>n.close(), 8000);
+  }
+}
+
+async function runOnce(){
+  const kws = $('#keywords').value.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  const years = $('#years').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const house = $('#house').value; // both | ha | lc
+  const proxy = $('#proxy').value.trim();
+
+  $('#status').textContent = 'Checking…';
+  $('#lastRun').textContent = `Last run: ${nowStr()}`;
+  $('#live').textContent = 'Fetching search results…';
+
+  const tbody = $('#tbody');
+  tbody.innerHTML = '';
+
+  // Build a set of search URLs
+  const urls = [];
+  for (const kw of kws){
+    const param = buildQueryParam(kw);
+    for (const y of (years.length?years:[new Date().getFullYear().toString()])){
+      // Base search across Hansard (both houses)
+      let base = `https://search.parliament.tas.gov.au/search/search/search?IW_DATABASE=Hansard&IW_SORT=-9&${param}`;
+      // Prefer to bias by year via a phrase include (year in doc body title). If nothing returns, the site shows older too, but we'll post-filter.
+      if (y) base += `&IW_FIELD_ADVANCE_YEAR=${encodeURIComponent(y)}`; // not guaranteed; we filter on parse too
+      // House-specific advanced pages have their own forms; the underlying DB appears unified. We'll filter by title in parse.
+      urls.push(base);
+    }
+  }
+
+  const allItems = [];
+  for (const url of urls){
+    const html = await safeFetch(url, proxy);
+    if (!html) continue;
+    const items = parseSearchResults(html);
+    // Year filter (fallback)
+    const yearSet = new Set(years);
+    const filtered = items.filter(it => years.length ? yearSet.has((it.date||'').slice(-4)) : true);
+    allItems.push(...filtered);
+  }
+
+  // Post-filter by house if chosen
+  const houseMap = {ha:'House of Assembly', lc:'Legislative Council'};
+  const post = allItems.filter(it => {
+    if (house === 'both') return true;
+    return (it.house||'').toLowerCase().includes(houseMap[house].toLowerCase());
+  });
+
+  // De-duplicate by URL/title
+  const unique = [];
+  const seenTmp = new Set();
+  for (const it of post){
+    const key = `${it.title}|${it.href}`;
+    if (!seenTmp.has(key)){ seenTmp.add(key); unique.push(it); }
+  }
+
+  // Fetch each detail page to pull “As Text/HTML5” and scan for occurrences
+  const rows = [];
+  for (const it of unique){
+    const detailHtml = await safeFetch(it.href, $('#proxy').value.trim());
+    let textUrl = null, html5Url = null;
+    if (detailHtml){
+      const d = new DOMParser().parseFromString(detailHtml, 'text/html');
+      for (const a of d.querySelectorAll('a')){
+        const t = (a.textContent||'').trim().toLowerCase();
+        if (t === 'as text') textUrl = a.href;
+        if (t === 'as html5') html5Url = a.href;
+      }
+    }
+    const bodyUrl = html5Url || textUrl || it.href; // fallback to details page
+    const body = await safeFetch(bodyUrl, $('#proxy').value.trim());
+    const kwHits = scanForKeywords(body, kws);
+    if (kwHits.length){
+      const hash = await sha1(bodyUrl + '|' + kwHits.map(h=>h.context).join(''));
+      const isNew = !state.seen.has(hash);
+      if (isNew){
+        state.seen.add(hash);
+        stickySeen();
+        notify('New Hansard match', `${it.house} • ${it.date}\n${it.title}`);
+      }
+      rows.push(renderRow({ ...it, bodyUrl, kwHits, isNew }));
+    }
+  }
+
+  if (!rows.length){
+    $('#live').innerHTML = 'No matches found yet for the current settings.';
+  } else {
+    $('#live').innerHTML = `${rows.length} match(es). ${unique.length} document(s) checked.`;
+  }
+  for (const r of rows){ $('#tbody').insertAdjacentHTML('beforeend', r); }
+  $('#status').textContent = state.running ? 'Watching…' : 'Idle';
+}
+
+function buildQueryParam(kw){
+  // If user typed a quoted phrase, prefer IW_FIELD_ADVANCE_PHRASE
+  const hasQuotes = /^".*"$/.test(kw);
+  const field = hasQuotes ? 'IW_FIELD_ADVANCE_PHRASE' : 'IW_FIELD_ADVANCE_ALLWORDS';
+  return `${field}=${encodeURIComponent(kw)}`;
+}
+
+async function safeFetch(url, proxy){
+  const finalUrl = proxy ? `${proxy}${encodeURIComponent(url)}` : url;
+  try{
+    const res = await fetch(finalUrl, { credentials:'omit' });
+    if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+    return await res.text();
+  }catch(e){
+    console.warn('Fetch failed', e, url);
+    return '';
+  }
+}
+
+function parseSearchResults(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // Heuristic: result list contains anchors near a date node and a title.
+  const out = [];
+  doc.querySelectorAll('a').forEach(a => {
+    const txt = (a.textContent||'').trim();
+    if (!txt) return;
+    // Likely result title looks like “House of Assembly Tuesday 4 March 2025”
+    const m = txt.match(/(House of Assembly|Legislative Council).*?(\d{1,2} [A-Za-z]+ \d{4})/i);
+    if (m){
+      const row = a.closest('tr') || a.closest('div') || a.parentElement;
+      let date = m[2];
+      out.push({ title: txt, date, house: m[1], href: a.href });
+    }
+  });
+  return out;
+}
+
+function scanForKeywords(body, kws){
+  if (!body) return [];
+  const text = body.replace(/\s+/g,' ');
+  const hits = [];
+  for (const raw of kws){
+    const kw = raw.replace(/^"|"$/g,'').trim();
+    if (!kw) continue;
+    try{
+      // simple word-boundary search (case-insensitive)
+      const re = new RegExp(`(.{0,80})(${escapeRegExp(kw)})(.{0,80})`, 'gi');
+      let m; let found = false;
+      while ((m = re.exec(text)) && hits.length < 6){
+        found = true;
+        hits.push({ kw, context: `${m[1]}<mark>${m[2]}</mark>${m[3]}` });
+      }
+      // Also allow boolean "A OR B" on a line
+      if (!found && /\sOR\s/i.test(raw)){
+        const parts = raw.split(/\sOR\s/i).map(s=>s.replace(/^"|"$/g,'').trim());
+        for (const p of parts){
+          const re2 = new RegExp(`(.{0,80})(${escapeRegExp(p)})(.{0,80})`, 'gi');
+          let m2; if ((m2 = re2.exec(text))){ hits.push({ kw:p, context:`${m2[1]}<mark>${m2[2]}</mark>${m2[3]}` }); break; }
+        }
+      }
+    }catch(err){ console.warn('Keyword error', raw, err); }
+  }
+  return hits;
+}
+function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+function renderRow({date, house, title, bodyUrl, kwHits, isNew}){
+  const matches = kwHits.map(h=>`<span class="pill">${h.kw}</span>`).join('');
+  const snippet = kwHits.slice(0,2).map(h=>`… ${h.context} …`).join('<br>');
+  return `<tr>
+    <td>${date||''}</td>
+    <td>${house||''}</td>
+    <td>
+      <div class="title">${title||''} ${isNew?'<span class="pill" style="border-color:#2dffb5;color:#2dffb5">NEW</span>':''}</div>
+      <div class="meta">${snippet}</div>
+    </td>
+    <td>${matches}</td>
+    <td><a href="${bodyUrl}" target="_blank" rel="noopener">Open</a></td>
+  </tr>`;
+}
+
+function stickySeen(){
+  localStorage.setItem('tashansard.seen', JSON.stringify(Array.from(state.seen)));
+}
+
+function toggleAuto(){
+  state.running = !state.running;
+  $('#toggle').textContent = state.running ? 'Stop auto-watch' : 'Start auto-watch';
+  if (state.running){
+    runOnce();
+    const minutes = Math.max(1, parseInt($('#interval').value||'15',10));
+    state.timer = setInterval(runOnce, minutes*60*1000);
+    $('#status').textContent = 'Watching…';
+    if (Notification && Notification.permission !== 'granted') Notification.requestPermission();
+  } else {
+    clearInterval(state.timer); state.timer = null; $('#status').textContent = 'Idle';
+  }
+}
+
+// Wire up UI
+$('#run').addEventListener('click', runOnce);
+$('#toggle').addEventListener('click', toggleAuto);
+$('#save').addEventListener('click', ()=>{ saveSettings(); notify('Saved','Your settings were saved.'); });
+$('#clearSeen').addEventListener('click', ()=>{ state.seen.clear(); stickySeen(); notify('Cleared','Seen cache cleared.'); });
+
+loadSettings();
+
+</script>
+</body>
+</html>
