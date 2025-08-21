@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Hansard Monitor Test</title>
+</head>
+<body>
+  <h1>Run Tasmania Hansard Monitor</h1>
+  <form id="form">
+    <label>Date: <input type="date" id="date" required></label><br>
+    <label>Keyword: <input type="text" id="keyword" required></label><br>
+    <button type="submit">Run</button>
+  </form>
+  <pre id="result"></pre>
+  <script>
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const date = document.getElementById('date').value;
+      const keyword = document.getElementById('keyword').value;
+      const res = await fetch('http://localhost:5000/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({date, keyword})
+      });
+      const data = await res.json();
+      document.getElementById('result').textContent = data.message;
+    });
+  </script>
+</body>
+</html>
