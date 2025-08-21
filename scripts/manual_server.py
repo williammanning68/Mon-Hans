@@ -1,9 +1,16 @@
 from datetime import datetime
-from flask import Flask, request, jsonify
+from pathlib import Path
+from flask import Flask, request, jsonify, send_file
 
 from tas_parl_monitor import run_monitor
 
 app = Flask(__name__)
+
+
+@app.get("/")
+def index():
+    root = Path(__file__).resolve().parent.parent
+    return send_file(root / "manual_test.html")
 
 @app.post('/run')
 def run():

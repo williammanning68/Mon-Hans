@@ -22,4 +22,4 @@ Run a local test server and trigger checks for any date and keyword:
 python scripts/manual_server.py
 ```
 
-Open `manual_test.html` in a browser, choose a date and keyword, and submit the form to run the monitor and send a test email.
+Then open <http://localhost:5000> in a browser, choose a date and keyword, and submit the form to run the monitor and send a test email.
