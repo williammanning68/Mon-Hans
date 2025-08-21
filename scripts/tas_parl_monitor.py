@@ -196,11 +196,13 @@ def find_speaker(lines: List[str], idx: int) -> str:
 
 def extract_mentions(file_path: Path, keywords: List[str]) -> List[Dict[str, str]]:
     text = file_path.read_text(encoding="utf-8", errors="ignore")
+    # Handle words split by hyphenation across lines.
+    text = re.sub(r"-\s*\n", "", text)
     lines = text.splitlines()
     mentions = []
     for idx, line in enumerate(lines):
         for kw in keywords:
-            if kw.lower() in line.lower():
+            if re.search(rf"\b{re.escape(kw)}\b", line, flags=re.IGNORECASE):
                 start = max(idx - 2, 0)
                 end = min(idx + 3, len(lines))
                 quote = " ".join(l.strip() for l in lines[start:end])
