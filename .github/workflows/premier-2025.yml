@@ -1,0 +1,24 @@
+name: Premier 2025 Monitor
+
+on:
+  schedule:
+    - cron: '30 8 19 8 *'
+      timezones: ['Australia/Hobart']
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: browser-actions/setup-chrome@v1
+      - run: pip install -r requirements.txt
+      - name: Run monitor
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          RECIPIENTS: william.manning@federalgroup.com.au
+        run: python scripts/tas_parl_monitor.py
